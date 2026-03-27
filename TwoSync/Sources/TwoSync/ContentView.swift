@@ -161,14 +161,21 @@ struct JobDetailView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(job.name)
                         .font(.title2.bold())
-                    if let last = job.lastRun {
-                        Text("Last run: \(last.formatted(.relative(presentation: .named)))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("Never run")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        if let last = job.lastRun {
+                            Text("Last run: \(last.formatted(.relative(presentation: .named)))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Never run")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        if job.watchContinuously && store.isWatching(job) {
+                            Label("Watching", systemImage: "eye.fill")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
                     }
                 }
 
@@ -322,6 +329,7 @@ struct AddJobView: View {
     @State private var folderA: String = ""
     @State private var folderB: String = ""
     @State private var schedule: SyncJob.Schedule = .everyHour
+    @State private var watchContinuously: Bool = false
     @State private var enabled: Bool = true
 
     private var isEditing: Bool { existing != nil }
@@ -358,9 +366,17 @@ struct AddJobView: View {
                 }
 
                 Section {
-                    Picker("Run", selection: $schedule) {
+                    Picker("Scheduled sync", selection: $schedule) {
                         ForEach(SyncJob.Schedule.allCases, id: \.self) { s in
                             Text(s.rawValue).tag(s)
+                        }
+                    }
+                    Toggle(isOn: $watchContinuously) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Monitor continuously")
+                            Text("Sync individual files seconds after they change, in addition to the schedule above. TwoSync won't re-sync files it placed itself.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                     }
                     Toggle("Enabled", isOn: $enabled)
@@ -382,6 +398,7 @@ struct AddJobView: View {
                         job.folderA = folderA
                         job.folderB = folderB
                         job.schedule = schedule
+                        job.watchContinuously = watchContinuously
                         job.enabled = enabled
                         store.updateJob(job)
                     } else {
@@ -390,6 +407,7 @@ struct AddJobView: View {
                             folderA: folderA,
                             folderB: folderB,
                             schedule: schedule,
+                            watchContinuously: watchContinuously,
                             enabled: enabled
                         )
                         store.addJob(job)
@@ -410,6 +428,7 @@ struct AddJobView: View {
                 folderA = job.folderA
                 folderB = job.folderB
                 schedule = job.schedule
+                watchContinuously = job.watchContinuously
                 enabled = job.enabled
             }
         }

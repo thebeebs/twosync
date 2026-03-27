@@ -9,6 +9,7 @@ struct SyncJob: Identifiable, Codable, Equatable {
     var folderA: String
     var folderB: String
     var schedule: Schedule
+    var watchContinuously: Bool = false   // real-time file watching
     var enabled: Bool = true
     var lastRun: Date?
     var lastResult: String?
@@ -51,6 +52,10 @@ class JobStore: ObservableObject {
     private let saveURL: URL
     private let launchAgentDir: URL
 
+    // Continuous watchers — keyed by job ID
+    private var watchers: [UUID: FolderWatcher] = [:]
+    private let registry = PlacedByUsRegistry()
+
     struct LogLine: Identifiable {
         let id = UUID()
         let text: String
@@ -76,6 +81,10 @@ class JobStore: ObservableObject {
               let decoded = try? JSONDecoder().decode([SyncJob].self, from: data)
         else { return }
         jobs = decoded
+        // Re-start any continuous watchers
+        for job in jobs where job.enabled && job.watchContinuously {
+            startWatcher(job)
+        }
     }
 
     func save() {
@@ -88,8 +97,9 @@ class JobStore: ObservableObject {
     func addJob(_ job: SyncJob) {
         jobs.append(job)
         save()
-        if job.enabled, job.schedule != .manual {
-            installLaunchAgent(job)
+        if job.enabled {
+            if job.schedule != .manual { installLaunchAgent(job) }
+            if job.watchContinuously { startWatcher(job) }
         }
     }
 
@@ -97,13 +107,16 @@ class JobStore: ObservableObject {
         guard let idx = jobs.firstIndex(where: { $0.id == job.id }) else { return }
         jobs[idx] = job
         save()
+        stopWatcher(job)
         uninstallLaunchAgent(job)
-        if job.enabled, job.schedule != .manual {
-            installLaunchAgent(job)
+        if job.enabled {
+            if job.schedule != .manual { installLaunchAgent(job) }
+            if job.watchContinuously { startWatcher(job) }
         }
     }
 
     func deleteJob(_ job: SyncJob) {
+        stopWatcher(job)
         uninstallLaunchAgent(job)
         jobs.removeAll { $0.id == job.id }
         if selectedJobID == job.id { selectedJobID = nil }
@@ -115,6 +128,32 @@ class JobStore: ObservableObject {
         j.enabled.toggle()
         updateJob(j)
     }
+
+    // ── Continuous Watcher ────────────────────────────────────────────────────
+
+    func startWatcher(_ job: SyncJob) {
+        stopWatcher(job)
+        let a = URL(fileURLWithPath: job.folderA)
+        let b = URL(fileURLWithPath: job.folderB)
+        let watcher = FolderWatcher(folderA: a, folderB: b, registry: registry) { [weak self] changedFile, destFolder in
+            guard let self else { return }
+            self.appendLog("👁 Change detected: \(changedFile.lastPathComponent) → syncing", error: false)
+            // Run a targeted sync for just this job
+            self.runJob(job)
+        }
+        watcher.start()
+        watchers[job.id] = watcher
+        appendLog("👁 Watching: \(job.name)", error: false)
+    }
+
+    func stopWatcher(_ job: SyncJob) {
+        watchers[job.id]?.stop()
+        watchers.removeValue(forKey: job.id)
+    }
+
+    var isWatching: (SyncJob) -> Bool {{ [weak self] job in
+        self?.watchers[job.id] != nil
+    }}
 
     // ── Run ──────────────────────────────────────────────────────────────────
 
