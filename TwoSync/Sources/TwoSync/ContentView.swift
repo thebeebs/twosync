@@ -29,7 +29,9 @@ struct ContentView: View {
 
 struct JobListView: View {
     @EnvironmentObject var store: JobStore
+    @EnvironmentObject var loginItem: LoginItemManager
     @State private var showingAdd = false
+    @State private var showingPrefs = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,35 +49,54 @@ struct JobListView: View {
 
             Divider()
 
-            HStack {
+            // Bottom toolbar
+            HStack(spacing: 0) {
+                // Add job
                 Button {
                     showingAdd = true
                 } label: {
-                    Label("Add Job", systemImage: "plus")
-                        .font(.system(size: 12))
+                    Image(systemName: "plus")
+                        .font(.system(size: 13))
+                        .frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .help("Add sync job")
+
+                // Remove selected job
+                Button {
+                    if let job = store.selectedJob { store.deleteJob(job) }
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 13))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(store.selectedJob != nil ? .red : .secondary)
+                .disabled(store.selectedJob == nil)
+                .help("Remove selected job")
 
                 Spacer()
 
-                if let job = store.selectedJob {
-                    Button {
-                        store.deleteJob(job)
-                    } label: {
-                        Image(systemName: "minus")
-                            .font(.system(size: 12))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .foregroundColor(.red)
+                // Settings / preferences
+                Button {
+                    showingPrefs = true
+                } label: {
+                    Image(systemName: "gear")
+                        .font(.system(size: 13))
+                        .frame(width: 28, height: 28)
                 }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .help("Preferences")
             }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
         }
         .sheet(isPresented: $showingAdd) {
             AddJobView()
+        }
+        .sheet(isPresented: $showingPrefs) {
+            PreferencesView()
         }
     }
 }
@@ -416,6 +437,53 @@ struct FolderPickerRow: View {
             }
             .controlSize(.small)
         }
+    }
+}
+
+// ─── Preferences Sheet ───────────────────────────────────────────────────────
+
+struct PreferencesView: View {
+    @EnvironmentObject var loginItem: LoginItemManager
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Preferences")
+                    .font(.title3.bold())
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.return)
+            }
+            .padding(20)
+
+            Divider()
+
+            Form {
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { loginItem.isEnabled },
+                        set: { _ in loginItem.toggle() }
+                    )) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Launch TwoSync at login")
+                                .font(.system(size: 13))
+                            Text("TwoSync will open automatically when you log in to your Mac.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("General")
+                }
+            }
+            .formStyle(.grouped)
+            .frame(height: 140)
+
+            Spacer()
+        }
+        .frame(width: 400, height: 220)
+        .onAppear { loginItem.refresh() }
     }
 }
 
