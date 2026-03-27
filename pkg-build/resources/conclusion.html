@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: -apple-system, sans-serif; padding: 20px;">
+<h2>✓ twosync installed</h2>
+<p>Open Terminal and try:</p>
+<pre style="background:#f0f0f0; padding:12px; border-radius:6px; font-size:13px;">
+# Sync two folders once
+twosync ~/FolderA ~/FolderB --verbose
+
+# Set up hourly auto-sync
+twosync-setup ~/FolderA ~/FolderB
+
+# Preview changes without applying
+twosync ~/FolderA ~/FolderB --dry-run --verbose
+</pre>
+<p style="color: #666; font-size: 13px;">Logs are saved to <code>~/.twosync/twosync.log</code></p>
+</body>
+</html>

@@ -1,0 +1,19 @@
+#!/bin/bash
+# postinstall — runs after the .pkg lays down files
+
+set -e
+
+INSTALL_DIR="$HOME/.twosync"
+SCRIPT_SRC="/usr/local/share/twosync/twosync.py"
+
+# Create state dir
+mkdir -p "$INSTALL_DIR"
+
+# Copy the Python script into ~/.twosync/
+cp "$SCRIPT_SRC" "$INSTALL_DIR/twosync.py"
+chmod +x "$INSTALL_DIR/twosync.py"
+
+# Make the wrapper executable
+chmod +x "/usr/local/bin/twosync"
+
+exit 0

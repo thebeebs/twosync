@@ -1,0 +1,448 @@
+import SwiftUI
+
+struct ContentView: View {
+    @EnvironmentObject var store: JobStore
+
+    var body: some View {
+        NavigationSplitView {
+            JobListView()
+                .navigationSplitViewColumnWidth(min: 240, ideal: 260)
+        } detail: {
+            if let job = store.selectedJob {
+                JobDetailView(job: job)
+            } else {
+                EmptyStateView()
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button(action: { store.selectedJobID = nil }) {
+                    Image(systemName: "sidebar.left")
+                }
+                .help("Toggle sidebar")
+            }
+        }
+    }
+}
+
+// ─── Job List (sidebar) ───────────────────────────────────────────────────────
+
+struct JobListView: View {
+    @EnvironmentObject var store: JobStore
+    @State private var showingAdd = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            List(store.jobs, selection: $store.selectedJobID) { job in
+                JobRowView(job: job)
+                    .tag(job.id)
+                    .contextMenu {
+                        Button("Run Now") { store.runJob(job) }
+                        Button(job.enabled ? "Disable" : "Enable") { store.toggleEnabled(job) }
+                        Divider()
+                        Button("Delete", role: .destructive) { store.deleteJob(job) }
+                    }
+            }
+            .listStyle(.sidebar)
+
+            Divider()
+
+            HStack {
+                Button {
+                    showingAdd = true
+                } label: {
+                    Label("Add Job", systemImage: "plus")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
+                Spacer()
+
+                if let job = store.selectedJob {
+                    Button {
+                        store.deleteJob(job)
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .foregroundColor(.red)
+                }
+            }
+        }
+        .sheet(isPresented: $showingAdd) {
+            AddJobView()
+        }
+    }
+}
+
+struct JobRowView: View {
+    let job: SyncJob
+    @EnvironmentObject var store: JobStore
+
+    var statusColor: Color {
+        guard job.enabled else { return .secondary }
+        switch job.lastStatus {
+        case .idle:    return .secondary
+        case .running: return .orange
+        case .success: return .green
+        case .failed:  return .red
+        }
+    }
+
+    var statusIcon: String {
+        switch job.lastStatus {
+        case .idle:    return "circle"
+        case .running: return "arrow.triangle.2.circlepath"
+        case .success: return "checkmark.circle.fill"
+        case .failed:  return "xmark.circle.fill"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: statusIcon)
+                .foregroundColor(statusColor)
+                .font(.system(size: 14))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(job.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(job.enabled ? .primary : .secondary)
+                    .lineLimit(1)
+
+                Text(job.schedule.rawValue)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// ─── Job Detail ───────────────────────────────────────────────────────────────
+
+struct JobDetailView: View {
+    let job: SyncJob
+    @EnvironmentObject var store: JobStore
+    @State private var showingEdit = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(job.name)
+                        .font(.title2.bold())
+                    if let last = job.lastRun {
+                        Text("Last run: \(last.formatted(.relative(presentation: .named)))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Never run")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    showingEdit = true
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+
+                Button {
+                    store.runJob(job)
+                } label: {
+                    Label("Run Now", systemImage: "play.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(job.lastStatus == .running)
+            }
+            .padding(20)
+
+            Divider()
+
+            // Folder paths
+            VStack(spacing: 0) {
+                FolderRow(label: "Folder A", path: job.folderA)
+                Divider().padding(.leading, 16)
+                FolderRow(label: "Folder B", path: job.folderB)
+                Divider().padding(.leading, 16)
+
+                HStack {
+                    Label("Schedule", systemImage: "clock")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .frame(width: 90, alignment: .leading)
+                    Text(job.schedule.rawValue)
+                        .font(.system(size: 13))
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { job.enabled },
+                        set: { _ in store.toggleEnabled(job) }
+                    ))
+                    .labelsHidden()
+                    .help(job.enabled ? "Disable this job" : "Enable this job")
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            }
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(10)
+            .padding(16)
+
+            Divider()
+
+            // Log
+            LogView()
+        }
+        .sheet(isPresented: $showingEdit) {
+            AddJobView(existing: job)
+        }
+    }
+}
+
+struct FolderRow: View {
+    let label: String
+    let path: String
+
+    var body: some View {
+        HStack {
+            Label(label, systemImage: "folder.fill")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .frame(width: 90, alignment: .leading)
+            Text(path)
+                .font(.system(size: 13, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            Button {
+                NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            } label: {
+                Image(systemName: "arrow.up.right.square")
+                    .font(.system(size: 12))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+// ─── Log View ─────────────────────────────────────────────────────────────────
+
+struct LogView: View {
+    @EnvironmentObject var store: JobStore
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Activity Log")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button("Clear") { store.clearLog() }
+                    .font(.system(size: 11))
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+
+            Divider()
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 1) {
+                        ForEach(store.logLines) { line in
+                            Text(line.text)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundColor(line.isError ? .red : .primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 1)
+                                .id(line.id)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .background(Color(NSColor.textBackgroundColor))
+                .onChange(of: store.logLines.count) { _ in
+                    if let last = store.logLines.last {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
+            }
+        }
+        .frame(maxHeight: .infinity)
+    }
+}
+
+// ─── Add / Edit Job Sheet ─────────────────────────────────────────────────────
+
+struct AddJobView: View {
+    @EnvironmentObject var store: JobStore
+    @Environment(\.dismiss) var dismiss
+
+    var existing: SyncJob?
+
+    @State private var name: String = ""
+    @State private var folderA: String = ""
+    @State private var folderB: String = ""
+    @State private var schedule: SyncJob.Schedule = .everyHour
+    @State private var enabled: Bool = true
+
+    private var isEditing: Bool { existing != nil }
+    private var isValid: Bool { !name.isEmpty && !folderA.isEmpty && !folderB.isEmpty }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Title
+            HStack {
+                Text(isEditing ? "Edit Sync Job" : "New Sync Job")
+                    .font(.title3.bold())
+                Spacer()
+            }
+            .padding(20)
+
+            Divider()
+
+            Form {
+                Section {
+                    TextField("Job name (e.g. Work Backup)", text: $name)
+                } header: {
+                    Text("Name")
+                }
+
+                Section {
+                    FolderPickerRow(label: "Folder A", path: $folderA)
+                    FolderPickerRow(label: "Folder B", path: $folderB)
+                } header: {
+                    Text("Folders to sync")
+                } footer: {
+                    Text("Files will be kept in sync in both directions. Deletions in either folder will be mirrored.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Section {
+                    Picker("Run", selection: $schedule) {
+                        ForEach(SyncJob.Schedule.allCases, id: \.self) { s in
+                            Text(s.rawValue).tag(s)
+                        }
+                    }
+                    Toggle("Enabled", isOn: $enabled)
+                } header: {
+                    Text("Schedule")
+                }
+            }
+            .formStyle(.grouped)
+
+            Divider()
+
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.escape)
+                Spacer()
+                Button(isEditing ? "Save" : "Add Job") {
+                    if isEditing, var job = existing {
+                        job.name = name
+                        job.folderA = folderA
+                        job.folderB = folderB
+                        job.schedule = schedule
+                        job.enabled = enabled
+                        store.updateJob(job)
+                    } else {
+                        let job = SyncJob(
+                            name: name,
+                            folderA: folderA,
+                            folderB: folderB,
+                            schedule: schedule,
+                            enabled: enabled
+                        )
+                        store.addJob(job)
+                        store.selectedJobID = job.id
+                    }
+                    dismiss()
+                }
+                .keyboardShortcut(.return)
+                .buttonStyle(.borderedProminent)
+                .disabled(!isValid)
+            }
+            .padding(20)
+        }
+        .frame(width: 480)
+        .onAppear {
+            if let job = existing {
+                name = job.name
+                folderA = job.folderA
+                folderB = job.folderB
+                schedule = job.schedule
+                enabled = job.enabled
+            }
+        }
+    }
+}
+
+struct FolderPickerRow: View {
+    let label: String
+    @Binding var path: String
+
+    var body: some View {
+        HStack {
+            TextField(label, text: $path)
+                .font(.system(size: 12, design: .monospaced))
+
+            Button("Choose…") {
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                panel.allowsMultipleSelection = false
+                panel.prompt = "Select"
+                if panel.runModal() == .OK, let url = panel.url {
+                    path = url.path
+                }
+            }
+            .controlSize(.small)
+        }
+    }
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+
+struct EmptyStateView: View {
+    @EnvironmentObject var store: JobStore
+    @State private var showingAdd = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 52))
+                .foregroundColor(.secondary.opacity(0.4))
+            Text("No sync job selected")
+                .font(.title3)
+                .foregroundColor(.secondary)
+            Text("Add a job to start syncing two folders automatically.")
+                .font(.callout)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Add Sync Job…") { showingAdd = true }
+                .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showingAdd) {
+            AddJobView()
+        }
+    }
+}
