@@ -6,6 +6,34 @@ struct TwoSyncApp: App {
     @StateObject private var store = JobStore()
     @StateObject private var loginItem = LoginItemManager()
 
+    init() {
+        installScriptIfNeeded()
+    }
+
+    /// Copies twosync.py from the app bundle into Application Support/TwoSync/
+    /// so the LaunchAgent and in-app runner can always find it there.
+    private func installScriptIfNeeded() {
+        guard let bundleScript = Bundle.main.url(forResource: "twosync", withExtension: "py") else {
+            print("TwoSync: twosync.py not found in bundle!")
+            return
+        }
+
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = support.appendingPathComponent("TwoSync")
+        let dest = dir.appendingPathComponent("twosync.py")
+
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            // Always overwrite so updates ship with new app versions
+            if FileManager.default.fileExists(atPath: dest.path) {
+                try FileManager.default.removeItem(at: dest)
+            }
+            try FileManager.default.copyItem(at: bundleScript, to: dest)
+        } catch {
+            print("TwoSync: failed to install twosync.py — \(error)")
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

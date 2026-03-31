@@ -11,6 +11,7 @@
 		AA02 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA02 /* ContentView.swift */; };
 		AA03 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA03 /* Models.swift */; };
 		AA04 /* FolderWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA04 /* FolderWatcher.swift */; };
+		AA05 /* twosync.py in Resources */ = {isa = PBXBuildFile; fileRef = FA06 /* twosync.py */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +21,7 @@
 		FA03 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		FA04 /* FolderWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderWatcher.swift; sourceTree = "<group>"; };
 		FA05 /* TwoSync.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TwoSync.entitlements; sourceTree = "<group>"; };
+		FA06 /* twosync.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = twosync.py; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,6 +39,7 @@
 			children = (
 				FC01 /* TwoSync */,
 				FC02 /* Products */,
+				FA06 /* twosync.py */,
 			);
 			sourceTree = "<group>";
 		};
@@ -129,7 +132,9 @@
 		FB02 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = ();
+			files = (
+				AA05 /* twosync.py in Resources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
